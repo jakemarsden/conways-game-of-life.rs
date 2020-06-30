@@ -58,17 +58,17 @@ fn main() {
     let count = cli_opts.count.unwrap_or(usize::MAX);
     let period = Duration::from_millis(cli_opts.period);
 
-    let mut seed_gen = Generation::new(cli_opts.width, cli_opts.height);
+    let mut seed_generation = Generation::new(cli_opts.width, cli_opts.height);
     // Start with a glider in the top-left
-    for cell_pos in GLIDER_CELLS.iter() {
-        seed_gen[*cell_pos] = State::Alive;
+    for glider_cell in GLIDER_CELLS.iter() {
+        seed_generation[*glider_cell] = Cell::Alive;
     }
 
-    let dump_generation = |(gen_idx, gen): (usize, Generation)| {
-        println!("Generation {}", gen_idx);
-        println!("{}", gen);
+    let dump_generation = |(generation_idx, generation): (usize, Generation)| {
+        println!("Generation {}", generation_idx);
+        println!("{}", generation);
     };
-    Generation::generation_iter(seed_gen)
+    Generation::generation_iter(seed_generation)
         .enumerate()
         .skip(start_idx)
         .take(count)
@@ -82,8 +82,8 @@ impl fmt::Display for Generation {
             write!(f, "|")?;
             for x in 0..self.width() {
                 let ch = match self[Position(x, y)] {
-                    State::Dead => ' ',
-                    State::Alive => 'x',
+                    Cell::Alive => 'x',
+                    Cell::Dead => ' ',
                 };
                 write!(f, "{}", ch)?;
             }
