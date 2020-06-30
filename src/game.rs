@@ -87,13 +87,20 @@ impl Generation {
             (0, 1),
             (1, 1),
         ];
+        let offset_to_state_mapper = |(x_off, y_off): &(isize, isize)| {
+            let x = position.0 as isize + *x_off;
+            let y = position.1 as isize + *y_off;
+            if x < 0 || x as usize >= self.width() {
+                return None;
+            }
+            if y < 0 || y as usize >= self.height() {
+                return None;
+            }
+            Some(self[Position(x as usize, y as usize)])
+        };
         offsets
             .iter()
-            .map(move |(x_off, y_off)| (position.0 as isize + *x_off, position.1 as isize + *y_off))
-            .filter(|(x, y)| *x >= 0 && *y >= 0)
-            .map(|(x, y)| (x as usize, y as usize))
-            .filter(move |(x, y)| *x < self.width() && *y < self.height())
-            .map(move |(x, y)| self[Position(x, y)])
+            .filter_map(offset_to_state_mapper)
             .filter(|state| state.is_alive())
             .count()
     }
