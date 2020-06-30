@@ -7,6 +7,14 @@ use crate::game::*;
 
 mod game;
 
+const GLIDER_CELLS: [Position; 5] = [
+    Position(1, 0),
+    Position(2, 1),
+    Position(0, 2),
+    Position(1, 2),
+    Position(2, 2),
+];
+
 #[derive(StructOpt, Debug)]
 #[structopt()]
 struct CliOptions {
@@ -52,11 +60,9 @@ fn main() {
 
     let mut seed_gen = Generation::new(cli_opts.width, cli_opts.height);
     // Start with a glider in the top-left
-    seed_gen[Position(5, 6)] = State::Alive;
-    seed_gen[Position(6, 7)] = State::Alive;
-    seed_gen[Position(4, 8)] = State::Alive;
-    seed_gen[Position(5, 8)] = State::Alive;
-    seed_gen[Position(6, 8)] = State::Alive;
+    for cell_pos in GLIDER_CELLS.iter() {
+        seed_gen[*cell_pos] = State::Alive;
+    }
 
     let dump_generation = |(gen_idx, gen): (usize, Generation)| {
         println!("Generation {}", gen_idx);
