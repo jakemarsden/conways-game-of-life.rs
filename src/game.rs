@@ -88,19 +88,23 @@ impl Generation {
             (1, 1),
         ];
         let offset_to_state_mapper = |(x_off, y_off): &(isize, isize)| {
-            let x = position.0 as isize + *x_off;
-            let y = position.1 as isize + *y_off;
-            if x < 0 || x as usize >= self.width() {
-                return None;
+            let mut x = position.0 as isize + *x_off;
+            let mut y = position.1 as isize + *y_off;
+            if x < 0 {
+                x += self.width() as isize;
+            } else {
+                x %= self.width() as isize;
             }
-            if y < 0 || y as usize >= self.height() {
-                return None;
+            if y < 0 {
+                y += self.height() as isize;
+            } else {
+                y %= self.height() as isize;
             }
-            Some(self[Position(x as usize, y as usize)])
+            self[Position(x as usize, y as usize)]
         };
         offsets
             .iter()
-            .filter_map(offset_to_state_mapper)
+            .map(offset_to_state_mapper)
             .filter(|state| state.is_alive())
             .count()
     }
