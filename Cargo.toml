@@ -9,3 +9,6 @@ edition = "2018"
 [[bin]]
 name = "conways-game-of-life"
 path = "src/main.rs"
+
+[dependencies]
+structopt = "0.3"

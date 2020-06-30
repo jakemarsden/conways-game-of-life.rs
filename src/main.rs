@@ -1,25 +1,73 @@
 use std::time::Duration;
 use std::{fmt, thread};
 
+use structopt::StructOpt;
+
 use crate::game::*;
 
 mod game;
 
+#[derive(StructOpt, Debug)]
+#[structopt()]
+struct CliOptions {
+    #[structopt(
+        short,
+        long,
+        default_value = "0",
+        help = "Index of the first generation to display (zero-based)"
+    )]
+    start: usize,
+    #[structopt(short, long, help = "Number of generations to display [default: ∞]")]
+    count: Option<usize>,
+    #[structopt(
+        short,
+        long,
+        default_value = "20",
+        help = "Duration to pause between generations (in milliseconds)"
+    )]
+    period: u64,
+
+    #[structopt(
+        short,
+        long,
+        default_value = "40",
+        help = "Number of horizontal cells to simulate"
+    )]
+    width: usize,
+    #[structopt(
+        short,
+        long,
+        default_value = "20",
+        help = "Number of vertical cells to simulate"
+    )]
+    height: usize,
+}
+
 fn main() {
-    let mut seed_gen = Generation::new(10, 10);
-    // Start with a glider near the centre
+    let cli_opts: CliOptions = CliOptions::from_args();
+
+    let start_idx = cli_opts.start;
+    let count = cli_opts.count.unwrap_or(usize::MAX);
+    let period = Duration::from_millis(cli_opts.period);
+
+    let mut seed_gen = Generation::new(cli_opts.width, cli_opts.height);
+    // Start with a glider in the top-left
     seed_gen[Position(5, 6)] = State::Alive;
     seed_gen[Position(6, 7)] = State::Alive;
     seed_gen[Position(4, 8)] = State::Alive;
     seed_gen[Position(5, 8)] = State::Alive;
     seed_gen[Position(6, 8)] = State::Alive;
 
-    let gens = Generation::generation_iter(seed_gen);
-    for (gen_idx, gen) in gens.enumerate() {
+    let dump_generation = |(gen_idx, gen): (usize, Generation)| {
         println!("Generation {}", gen_idx);
         println!("{}", gen);
-        thread::sleep(Duration::from_millis(500));
-    }
+    };
+    Generation::generation_iter(seed_gen)
+        .enumerate()
+        .skip(start_idx)
+        .take(count)
+        .inspect(|_| thread::sleep(period))
+        .for_each(dump_generation);
 }
 
 impl fmt::Display for Generation {
