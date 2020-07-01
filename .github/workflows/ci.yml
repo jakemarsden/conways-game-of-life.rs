@@ -40,6 +40,11 @@ jobs:
           command: build
           args: --release
 
+      - name: Upload executable
+        uses: actions/upload-artifact@v2
+        with:
+          path: target/release/conways-game-of-life?(.exe)
+
     strategy:
       matrix:
         os-version:
