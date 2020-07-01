@@ -2,6 +2,8 @@
 
 Command-line simulator for Conway's Game of Life
 
+[![CI][ci-badge]][ci]
+
 ## Help
 
 ```text
@@ -22,3 +24,6 @@ OPTIONS:
     -N, --step <step>        Display only every Nth generation [default: 1]
     -w, --width <width>      Number of horizontal cells to simulate [default: 40]
 ```
+
+[ci]: https://github.com/jakemarsden/conways-game-of-life.rs/actions?query=workflow%3ACI
+[ci-badge]: https://github.com/jakemarsden/conways-game-of-life.rs/workflows/CI/badge.svg
