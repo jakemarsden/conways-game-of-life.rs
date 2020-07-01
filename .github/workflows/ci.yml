@@ -43,7 +43,8 @@ jobs:
       - name: Upload executable
         uses: actions/upload-artifact@v2
         with:
-          path: target/release/conways-game-of-life?(.exe)
+          name: ${{ matrix.os-version }}-${{ matrix.rust-version }}
+          path: target/release/conways-game-of-life*
 
     strategy:
       matrix:
