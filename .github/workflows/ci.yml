@@ -1,0 +1,50 @@
+name: CI
+on:
+  - push
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os-version }} with rust-${{ matrix.rust-version }}
+    runs-on: ${{ matrix.os-version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v2
+
+      - name: Install toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          components: clippy, rustfmt
+          profile: minimal
+          toolchain: ${{ matrix.rust-version }}
+
+      - name: Format
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+
+      - name: Lint
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: -- -Dwarnings
+
+      - name: Test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+
+      - name: Build
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --release
+
+    strategy:
+      matrix:
+        os-version:
+          - macos-latest
+          - ubuntu-latest
+          - windows-latest
+        rust-version:
+          - stable
