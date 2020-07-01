@@ -19,13 +19,23 @@ struct CliOptions {
         help = "Index of the first generation to display (zero-based)"
     )]
     start: usize,
+
+    #[structopt(
+        short = "N",
+        long,
+        default_value = "1",
+        help = "Display only every Nth generation"
+    )]
+    step: usize,
+
     #[structopt(short, long, help = "Number of generations to display [default: ∞]")]
     count: Option<usize>,
+
     #[structopt(
         short,
         long,
         default_value = "20",
-        help = "Duration to pause between generations (in milliseconds)"
+        help = "Duration to pause after displaying each generation (in milliseconds)"
     )]
     period: u64,
 
@@ -36,6 +46,7 @@ struct CliOptions {
         help = "Number of horizontal cells to simulate"
     )]
     width: usize,
+
     #[structopt(
         short,
         long,
@@ -47,22 +58,19 @@ struct CliOptions {
 
 fn main() {
     let cli_opts: CliOptions = CliOptions::from_args();
-
-    let start_idx = cli_opts.start;
-    let count = cli_opts.count.unwrap_or(usize::MAX);
     let period = Duration::from_millis(cli_opts.period);
 
     let mut rng = SmallRng::from_entropy();
     let seed_generation = Generation::random(cli_opts.width, cli_opts.height, &mut rng);
 
     let dump_generation = |(generation_idx, generation): (usize, Generation)| {
-        println!("Generation {}", generation_idx);
-        println!("{}", generation);
+        println!("Generation {}\n{}", generation_idx, generation)
     };
     Generation::generation_iter(seed_generation)
         .enumerate()
-        .skip(start_idx)
-        .take(count)
+        .skip(cli_opts.start)
+        .step_by(cli_opts.step)
+        .take(cli_opts.count.unwrap_or(usize::MAX))
         .inspect(|_| thread::sleep(period))
         .for_each(dump_generation);
 }
