@@ -1,19 +1,13 @@
 use std::time::Duration;
 use std::{fmt, thread};
 
+use rand::rngs::SmallRng;
+use rand::SeedableRng;
 use structopt::StructOpt;
 
 use crate::game::*;
 
 mod game;
-
-const GLIDER_CELLS: [Position; 5] = [
-    Position(1, 0),
-    Position(2, 1),
-    Position(0, 2),
-    Position(1, 2),
-    Position(2, 2),
-];
 
 #[derive(StructOpt, Debug)]
 #[structopt()]
@@ -58,11 +52,8 @@ fn main() {
     let count = cli_opts.count.unwrap_or(usize::MAX);
     let period = Duration::from_millis(cli_opts.period);
 
-    let mut seed_generation = Generation::new(cli_opts.width, cli_opts.height);
-    // Start with a glider in the top-left
-    for glider_cell in GLIDER_CELLS.iter() {
-        seed_generation[*glider_cell] = Cell::Alive;
-    }
+    let mut rng = SmallRng::from_entropy();
+    let seed_generation = Generation::random(cli_opts.width, cli_opts.height, &mut rng);
 
     let dump_generation = |(generation_idx, generation): (usize, Generation)| {
         println!("Generation {}", generation_idx);

@@ -13,4 +13,5 @@ name = "conways-game-of-life"
 path = "src/main.rs"
 
 [dependencies]
+rand = { version = "0.7", features = ["small_rng"] }
 structopt = "0.3"

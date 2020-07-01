@@ -1,5 +1,7 @@
 use std::{iter, ops};
 
+use rand::Rng;
+
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub struct Position(pub usize, pub usize);
 
@@ -40,11 +42,19 @@ impl Generation {
         iter::successors(Some(seed), |prev| Some(prev.next()))
     }
 
-    pub fn new(width: usize, height: usize) -> Self {
+    pub fn random<R>(width: usize, height: usize, rng: &mut R) -> Self
+    where
+        R: Rng + ?Sized,
+    {
+        let mut cells = Vec::with_capacity(width * height);
+        for _ in 0..width * height {
+            let cell_state = if rng.gen() { Cell::Alive } else { Cell::Dead };
+            cells.push(cell_state);
+        }
         Self {
             width,
             height,
-            cells: vec![Cell::Dead; width * height],
+            cells,
         }
     }
 
