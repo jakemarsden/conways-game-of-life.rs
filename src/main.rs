@@ -80,7 +80,7 @@ impl fmt::Display for Generation {
         for y in 0..self.height() {
             write!(f, "|")?;
             for x in 0..self.width() {
-                let ch = match self[Position(x, y)] {
+                let ch = match self[Position::from((x, y))] {
                     Cell::Alive => 'x',
                     Cell::Dead => ' ',
                 };

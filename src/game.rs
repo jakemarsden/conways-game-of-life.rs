@@ -3,7 +3,7 @@ use std::{iter, ops};
 use rand::Rng;
 
 #[derive(PartialEq, Copy, Clone, Debug)]
-pub struct Position(pub usize, pub usize);
+pub struct Position(pub isize, pub isize);
 
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum Cell {
@@ -15,6 +15,37 @@ pub struct Generation {
     width: usize,
     height: usize,
     cells: Vec<Cell>,
+}
+
+impl Position {
+    pub fn x(self) -> isize {
+        self.0
+    }
+
+    pub fn y(self) -> isize {
+        self.1
+    }
+}
+
+impl ops::Add<Self> for Position {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        Self(self.x() + rhs.x(), self.y() + rhs.y())
+    }
+}
+
+impl ops::AddAssign for Position {
+    fn add_assign(&mut self, rhs: Self) {
+        self.0 += rhs.x();
+        self.1 += rhs.y();
+    }
+}
+
+impl From<(usize, usize)> for Position {
+    fn from((x, y): (usize, usize)) -> Self {
+        Self(x as isize, y as isize)
+    }
 }
 
 impl Cell {
@@ -70,12 +101,13 @@ impl Generation {
         let mut next_cells = Vec::with_capacity(self.cells.len());
         for y in 0..self.height() {
             for x in 0..self.width() {
+                let position = Position::from((x, y));
                 let live_neighbour_count = self
-                    .neighbouring_cells(Position(x, y))
+                    .neighbouring_cells(position)
                     .iter()
                     .filter(|cell| cell.is_alive())
                     .count();
-                let next_cell = match (live_neighbour_count, self[Position(x, y)]) {
+                let next_cell = match (live_neighbour_count, self[position]) {
                     (3, _) => Cell::Alive,
                     (2, Cell::Alive) => Cell::Alive,
                     _ => Cell::Dead,
@@ -91,39 +123,33 @@ impl Generation {
     }
 
     pub fn neighbouring_cells(&self, relative_to: Position) -> Vec<Cell> {
-        let offsets = [
-            (-1, -1),
-            (0, -1),
-            (1, -1),
-            (-1, 0),
-            (1, 0),
-            (-1, 1),
-            (0, 1),
-            (1, 1),
+        static OFFSETS: [Position; 8] = [
+            Position(-1, -1),
+            Position(0, -1),
+            Position(1, -1),
+            Position(-1, 0),
+            Position(1, 0),
+            Position(-1, 1),
+            Position(0, 1),
+            Position(1, 1),
         ];
-        let offset_to_cell_mapper = |(x_off, y_off): &(isize, isize)| {
-            let mut x = relative_to.0 as isize + *x_off;
-            let mut y = relative_to.1 as isize + *y_off;
-            if x < 0 {
-                x += self.width() as isize;
-            } else {
-                x %= self.width() as isize;
-            }
-            if y < 0 {
-                y += self.height() as isize;
-            } else {
-                y %= self.height() as isize;
-            }
-            self[Position(x as usize, y as usize)]
-        };
-        offsets.iter().map(offset_to_cell_mapper).collect()
+        OFFSETS
+            .iter()
+            .map(|offset| self[relative_to + *offset])
+            .collect()
     }
 
-    fn idx(&self, position: Position) -> usize {
-        // TODO: why can't I destructure here or in the args list?
-        let (x, y) = (position.0, position.1);
-        debug_assert!(x < self.width());
-        debug_assert!(y < self.height());
+    fn cell_idx(&self, position: Position) -> usize {
+        let x = if position.x() < 0 {
+            (position.x() + self.width() as isize) as usize
+        } else {
+            position.x() as usize % self.width()
+        };
+        let y = if position.y() < 0 {
+            (position.y() + self.height() as isize) as usize
+        } else {
+            position.y() as usize % self.height()
+        };
         x + y * self.width()
     }
 }
@@ -131,15 +157,17 @@ impl Generation {
 impl ops::Index<Position> for Generation {
     type Output = Cell;
 
+    /// Index will wrap around if outside of `[0, self.width)`, `[0, self.height)`
     fn index(&self, index: Position) -> &Self::Output {
-        let idx = self.idx(index);
+        let idx = self.cell_idx(index);
         &self.cells[idx]
     }
 }
 
 impl ops::IndexMut<Position> for Generation {
+    /// Index will wrap around if outside of `[0, self.width)`, `[0, self.height)`
     fn index_mut(&mut self, index: Position) -> &mut Self::Output {
-        let idx = self.idx(index);
+        let idx = self.cell_idx(index);
         &mut self.cells[idx]
     }
 }
