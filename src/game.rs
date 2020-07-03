@@ -73,6 +73,15 @@ impl Generation {
         iter::successors(Some(seed), |prev| Some(prev.next()))
     }
 
+    pub fn filled(width: usize, height: usize, filler: Cell) -> Self {
+        let cells = vec![filler; width * height];
+        Self {
+            width,
+            height,
+            cells,
+        }
+    }
+
     pub fn random<R>(width: usize, height: usize, rng: &mut R) -> Self
     where
         R: Rng + ?Sized,
@@ -97,8 +106,8 @@ impl Generation {
         self.height
     }
 
-    pub fn next(&self) -> Generation {
-        let mut next_cells = Vec::with_capacity(self.cells.len());
+    pub fn next(&self) -> Self {
+        let mut next = Self::filled(self.width(), self.height(), Cell::Dead);
         for y in 0..self.height() {
             for x in 0..self.width() {
                 let position = Position::from((x, y));
@@ -107,19 +116,14 @@ impl Generation {
                     .iter()
                     .filter(|cell| cell.is_alive())
                     .count();
-                let next_cell = match (live_neighbour_count, self[position]) {
+                next[position] = match (live_neighbour_count, self[position]) {
                     (3, _) => Cell::Alive,
                     (2, Cell::Alive) => Cell::Alive,
                     _ => Cell::Dead,
                 };
-                next_cells.push(next_cell);
             }
         }
-        Self {
-            width: self.width(),
-            height: self.height(),
-            cells: next_cells,
-        }
+        next
     }
 
     pub fn neighbouring_cells(&self, relative_to: Position) -> Vec<Cell> {
