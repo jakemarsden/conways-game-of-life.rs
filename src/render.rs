@@ -104,7 +104,7 @@ impl TerminalRenderer {
                 let position = Position::from((x, y));
                 let cell_redraw_needed = match curr_gen {
                     Some(curr_gen) => next_gen[position] != curr_gen[position],
-                    None => false,
+                    None => true,
                 };
                 if cell_redraw_needed {
                     self.redraw_cell((x, y), &next_gen[position])?;
@@ -152,18 +152,22 @@ impl Render<crossterm::ErrorKind> for TerminalRenderer {
         // we can get away with a partial redraw if
         //     1. not specifically asked to redraw everything from scratch (e.g. on the first draw)
         //     2. the next_gen is the same size as the curr_gen (and we actually have a curr_gen)
-        let full_redraw_needed = if let Some(curr_gen) = curr_gen {
-            width as usize != curr_gen.width() || height as usize != curr_gen.height()
-        } else {
-            true
+        let full_redraw_needed = match curr_gen {
+            Some(curr_gen) => {
+                width as usize != curr_gen.width() || height as usize != curr_gen.height()
+            }
+            None => true,
         };
 
         let mut out = io::stdout();
         if full_redraw_needed {
             queue!(out, Clear(ClearType::All))?;
+            self.redraw_title_if_needed(next_gen, None)?;
+            self.redraw_changed_cells(next_gen, None)?;
+        } else {
+            self.redraw_title_if_needed(next_gen, curr_gen)?;
+            self.redraw_changed_cells(next_gen, curr_gen)?;
         }
-        self.redraw_title_if_needed(next_gen, curr_gen)?;
-        self.redraw_changed_cells(next_gen, curr_gen)?;
 
         out.flush()?;
         Ok(())
