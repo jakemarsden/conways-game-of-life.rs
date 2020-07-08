@@ -2,15 +2,16 @@ use std::{iter, ops};
 
 use rand::Rng;
 
-#[derive(PartialEq, Copy, Clone, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct Position(pub isize, pub isize);
 
-#[derive(PartialEq, Copy, Clone, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum Cell {
     Alive,
     Dead,
 }
 
+#[derive(Clone)]
 pub struct Generation {
     width: usize,
     height: usize,
@@ -40,6 +41,12 @@ impl ops::AddAssign for Position {
     fn add_assign(&mut self, rhs: Self) {
         self.0 += rhs.x();
         self.1 += rhs.y();
+    }
+}
+
+impl From<(u16, u16)> for Position {
+    fn from((x, y): (u16, u16)) -> Self {
+        Self(x as isize, y as isize)
     }
 }
 

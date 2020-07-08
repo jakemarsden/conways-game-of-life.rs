@@ -1,7 +1,7 @@
-use std::fmt;
 use std::io::{self, Write};
+use std::{fmt, mem};
 
-use crossterm::cursor::{MoveTo, MoveToNextLine};
+use crossterm::cursor::MoveTo;
 use crossterm::queue;
 use crossterm::style::Print;
 use crossterm::terminal::{self, Clear, ClearType};
@@ -13,14 +13,13 @@ pub trait Render<E: fmt::Debug> {
 }
 
 pub struct TerminalRenderer {
-    // TODO: is there a better way to make the ctor private for a zero-field struct?
-    _private: (),
+    prev_gen: Option<Generation>,
 }
 
 impl TerminalRenderer {
     pub fn new() -> crossterm::Result<Self> {
         terminal::enable_raw_mode()?;
-        Ok(TerminalRenderer { _private: () })
+        Ok(Self { prev_gen: None })
     }
 }
 
@@ -32,36 +31,140 @@ impl Drop for TerminalRenderer {
     }
 }
 
-impl Render<crossterm::ErrorKind> for TerminalRenderer {
-    fn render(&mut self, gen: &Generation) -> crossterm::Result<()> {
-        let mut out = io::stdout();
+impl TerminalRenderer {
+    // account for left border col
+    const CELL_OFFSET_X: u16 = 1;
+    // leave 1 row between title and cells
+    const CELL_OFFSET_Y: u16 = Self::TITLE_POSITION_Y + 2;
 
-        // Clear terminal window
-        queue!(out, Clear(ClearType::All), MoveTo(0, 0))?;
+    const TITLE_POSITION_X: u16 = 0;
+    const TITLE_POSITION_Y: u16 = 0;
+    const TITLE_TEXT_PREFIX: &'static str = "Generation: ";
 
-        // Redraw title
-        queue!(
-            out,
-            Print("Generation: "),
-            Print(gen.index()),
-            MoveToNextLine(2)
-        )?;
-
-        // Redraw borders and cells
-        for y in 0..gen.height() {
-            queue!(out, Print('|'))?;
-            for x in 0..gen.width() {
-                let position = Position::from((x, y));
-                let ch = match gen[position] {
-                    Cell::Alive => 'x',
-                    Cell::Dead => ' ',
-                };
-                queue!(out, Print(ch))?;
-            }
-            queue!(out, Print('|'), MoveToNextLine(1))?;
+    /// - if `curr_gen` is `Some` => redraw the title for `next_gen` only if it differs from `curr_gen`
+    /// - if `curr_gen` is `None` => unconditionally redraw the title for `next_gen`
+    fn redraw_title_if_needed(
+        &mut self,
+        next_gen: &Generation,
+        curr_gen: Option<&Generation>,
+    ) -> crossterm::Result<()> {
+        enum RedrawStrategy {
+            /// Redraw full title (inc. prefix)
+            Full,
+            /// Redraw partial title (exc. prefix)
+            Partial,
+            /// Redraw nothing
+            Nop,
         }
 
+        let next_index = next_gen.index();
+        let strategy = match curr_gen {
+            Some(curr_gen) if next_index == curr_gen.index() => RedrawStrategy::Nop,
+            Some(_) => RedrawStrategy::Partial,
+            None => RedrawStrategy::Full,
+        };
+
+        match strategy {
+            RedrawStrategy::Full => {
+                let mut out = io::stdout();
+                queue!(
+                    out,
+                    MoveTo(Self::TITLE_POSITION_X, Self::TITLE_POSITION_Y),
+                    Clear(ClearType::UntilNewLine),
+                    Print(Self::TITLE_TEXT_PREFIX),
+                    Print(next_index)
+                )?;
+            }
+            RedrawStrategy::Partial => {
+                let mut out = io::stdout();
+                queue!(
+                    out,
+                    MoveTo(
+                        Self::TITLE_POSITION_X + Self::TITLE_TEXT_PREFIX.len() as u16,
+                        Self::TITLE_POSITION_Y,
+                    ),
+                    Clear(ClearType::UntilNewLine),
+                    Print(next_index)
+                )?;
+            }
+            RedrawStrategy::Nop => {}
+        }
+        Ok(())
+    }
+
+    /// - if `curr_gen` is `Some`, redraw those cells of `next_gen` which differ from those of `curr_gen`
+    /// - if `curr_gen` is `None`, unconditionally redraw all the cells of `next_gen`
+    fn redraw_changed_cells(
+        &mut self,
+        next_gen: &Generation,
+        curr_gen: Option<&Generation>,
+    ) -> crossterm::Result<()> {
+        for y in 0..next_gen.height() as u16 {
+            for x in 0..next_gen.width() as u16 {
+                let position = Position::from((x, y));
+                let cell_redraw_needed = match curr_gen {
+                    Some(curr_gen) => next_gen[position] != curr_gen[position],
+                    None => false,
+                };
+                if cell_redraw_needed {
+                    self.redraw_cell((x, y), &next_gen[position])?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn redraw_cell(&mut self, (x, y): (u16, u16), cell: &Cell) -> crossterm::Result<()> {
+        let ch = match cell {
+            Cell::Alive => 'x',
+            Cell::Dead => ' ',
+        };
+        let mut out = io::stdout();
+        queue!(
+            out,
+            MoveTo(x + Self::CELL_OFFSET_X, y + Self::CELL_OFFSET_Y),
+            Print(ch)
+        )?;
+        Ok(())
+    }
+
+    fn redraw_borders(&mut self, (width, height): (u16, u16)) -> crossterm::Result<()> {
+        let mut out = io::stdout();
+        for y in 0..height {
+            for x in [0, width + 1].iter() {
+                queue!(out, MoveTo(*x, y + Self::CELL_OFFSET_Y), Print('|'))?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Render<crossterm::ErrorKind> for TerminalRenderer {
+    fn render(&mut self, next_gen: &Generation) -> crossterm::Result<()> {
+        let mut curr_gen = Some(next_gen.clone());
+        mem::swap(&mut curr_gen, &mut self.prev_gen);
+
+        let curr_gen = curr_gen.as_ref();
+        let (width, height) = (next_gen.width() as u16, next_gen.height() as u16);
+
+        // we can get away with a partial redraw if
+        //     1. not specifically asked to redraw everything from scratch (e.g. on the first draw)
+        //     2. the next_gen is the same size as the curr_gen (and we actually have a curr_gen)
+        let full_redraw_needed = if let Some(curr_gen) = curr_gen {
+            width as usize != curr_gen.width() || height as usize != curr_gen.height()
+        } else {
+            true
+        };
+
+        let mut out = io::stdout();
+        if full_redraw_needed {
+            queue!(out, Clear(ClearType::All))?;
+            self.redraw_borders((width, height))?;
+        }
+        self.redraw_title_if_needed(next_gen, curr_gen)?;
+        self.redraw_changed_cells(next_gen, curr_gen)?;
         out.flush()?;
+
         Ok(())
     }
 }
