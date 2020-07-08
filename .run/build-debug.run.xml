@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="build" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+  <configuration default="false" name="build-debug" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
     <option name="channel" value="DEFAULT" />
     <option name="command" value="build" />
     <option name="allFeatures" value="false" />
