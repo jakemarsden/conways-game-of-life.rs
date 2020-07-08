@@ -14,15 +14,16 @@ pub enum Cell {
 pub struct Generation {
     width: usize,
     height: usize,
+    index: usize,
     cells: Vec<Cell>,
 }
 
 impl Position {
-    pub fn x(self) -> isize {
+    pub fn x(&self) -> isize {
         self.0
     }
 
-    pub fn y(self) -> isize {
+    pub fn y(&self) -> isize {
         self.1
     }
 }
@@ -49,7 +50,7 @@ impl From<(usize, usize)> for Position {
 }
 
 impl Cell {
-    pub fn is_alive(self) -> bool {
+    pub fn is_alive(&self) -> bool {
         match self {
             Self::Alive => true,
             Self::Dead => false,
@@ -73,16 +74,17 @@ impl Generation {
         iter::successors(Some(seed), |prev| Some(prev.next()))
     }
 
-    pub fn filled(width: usize, height: usize, filler: Cell) -> Self {
+    pub fn filled(index: usize, width: usize, height: usize, filler: Cell) -> Self {
         let cells = vec![filler; width * height];
         Self {
             width,
             height,
+            index,
             cells,
         }
     }
 
-    pub fn random<R>(width: usize, height: usize, rng: &mut R) -> Self
+    pub fn random<R>(index: usize, width: usize, height: usize, rng: &mut R) -> Self
     where
         R: Rng + ?Sized,
     {
@@ -94,6 +96,7 @@ impl Generation {
         Self {
             width,
             height,
+            index,
             cells,
         }
     }
@@ -106,8 +109,12 @@ impl Generation {
         self.height
     }
 
+    pub fn index(&self) -> usize {
+        self.index
+    }
+
     pub fn next(&self) -> Self {
-        let mut next = Self::filled(self.width(), self.height(), Cell::Dead);
+        let mut next = Self::filled(self.index() + 1, self.width(), self.height(), Cell::Dead);
         for y in 0..self.height() {
             for x in 0..self.width() {
                 let position = Position::from((x, y));
