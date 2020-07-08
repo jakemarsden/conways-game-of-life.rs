@@ -9,6 +9,7 @@ use crossterm::terminal::{self, Clear, ClearType};
 use crate::game::*;
 
 pub trait Render<E: fmt::Debug> {
+    fn available_space(&self) -> Option<(usize, usize)>;
     fn render(&mut self, gen: &Generation) -> Result<(), E>;
 }
 
@@ -32,13 +33,12 @@ impl Drop for TerminalRenderer {
 }
 
 impl TerminalRenderer {
-    // account for left border col
-    const CELL_OFFSET_X: u16 = 1;
-    // leave 1 row between title and cells
-    const CELL_OFFSET_Y: u16 = Self::TITLE_POSITION_Y + 2;
+    const CELL_OFFSET_X: u16 = Self::BORDER_THICKNESS;
+    const CELL_OFFSET_Y: u16 = Self::BORDER_THICKNESS + Self::TITLE_POSITION_Y + 1;
+    const BORDER_THICKNESS: u16 = 1;
 
-    const TITLE_POSITION_X: u16 = 0;
-    const TITLE_POSITION_Y: u16 = 0;
+    const TITLE_POSITION_X: u16 = Self::BORDER_THICKNESS;
+    const TITLE_POSITION_Y: u16 = Self::BORDER_THICKNESS;
     const TITLE_TEXT_PREFIX: &'static str = "Generation: ";
 
     /// - if `curr_gen` is `Some` => redraw the title for `next_gen` only if it differs from `curr_gen`
@@ -130,19 +130,18 @@ impl TerminalRenderer {
         }
         Ok(())
     }
-
-    fn redraw_borders(&mut self, (width, height): (u16, u16)) -> crossterm::Result<()> {
-        let mut out = io::stdout();
-        for y in 0..height {
-            for x in [0, width + 1].iter() {
-                queue!(out, MoveTo(*x, y + Self::CELL_OFFSET_Y), Print('|'))?;
-            }
-        }
-        Ok(())
-    }
 }
 
 impl Render<crossterm::ErrorKind> for TerminalRenderer {
+    fn available_space(&self) -> Option<(usize, usize)> {
+        let (term_width, term_height) = terminal::size().ok()?;
+        let (avail_width, avail_height) = (
+            term_width - Self::CELL_OFFSET_X - Self::BORDER_THICKNESS,
+            term_height - Self::CELL_OFFSET_Y - Self::BORDER_THICKNESS,
+        );
+        Some((avail_width as usize, avail_height as usize))
+    }
+
     fn render(&mut self, next_gen: &Generation) -> crossterm::Result<()> {
         let mut curr_gen = Some(next_gen.clone());
         mem::swap(&mut curr_gen, &mut self.prev_gen);
@@ -162,12 +161,11 @@ impl Render<crossterm::ErrorKind> for TerminalRenderer {
         let mut out = io::stdout();
         if full_redraw_needed {
             queue!(out, Clear(ClearType::All))?;
-            self.redraw_borders((width, height))?;
         }
         self.redraw_title_if_needed(next_gen, curr_gen)?;
         self.redraw_changed_cells(next_gen, curr_gen)?;
-        out.flush()?;
 
+        out.flush()?;
         Ok(())
     }
 }

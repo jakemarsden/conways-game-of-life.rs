@@ -11,6 +11,9 @@ use crate::render::*;
 mod game;
 mod render;
 
+const FALLBACK_WIDTH: usize = 40;
+const FALLBACK_HEIGHT: usize = 20;
+
 #[derive(StructOpt, Debug)]
 #[structopt()]
 struct CliOptions {
@@ -44,28 +47,36 @@ struct CliOptions {
     #[structopt(
         short,
         long,
-        default_value = "40",
-        help = "Number of horizontal cells to simulate"
+        help = "Number of horizontal cells to simulate [default: terminal-width]"
     )]
-    width: usize,
+    width: Option<usize>,
 
     #[structopt(
         short,
         long,
-        default_value = "20",
-        help = "Number of vertical cells to simulate"
+        help = "Number of vertical cells to simulate [default: terminal-height]"
     )]
-    height: usize,
+    height: Option<usize>,
 }
 
 fn main() -> crossterm::Result<()> {
     let cli_opts: CliOptions = CliOptions::from_args();
     let period = Duration::from_millis(cli_opts.period);
 
-    let mut rng = SmallRng::from_entropy();
-    let seed_generation = Generation::random(0, cli_opts.width, cli_opts.height, &mut rng);
-
     let mut renderer = TerminalRenderer::new()?;
+    let available_space = renderer.available_space();
+    let width = cli_opts
+        .width
+        .or_else(|| available_space.map(|(x, _)| x))
+        .unwrap_or(FALLBACK_WIDTH);
+    let height = cli_opts
+        .height
+        .or_else(|| available_space.map(|(_, y)| y))
+        .unwrap_or(FALLBACK_HEIGHT);
+
+    let mut rng = SmallRng::from_entropy();
+    let seed_generation = Generation::random(0, width, height, &mut rng);
+
     for gen in Generation::generation_iter(seed_generation)
         .skip(cli_opts.start)
         .step_by(cli_opts.step)
