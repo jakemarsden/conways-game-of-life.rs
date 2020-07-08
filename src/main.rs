@@ -58,18 +58,21 @@ struct CliOptions {
     height: usize,
 }
 
-fn main() {
+fn main() -> crossterm::Result<()> {
     let cli_opts: CliOptions = CliOptions::from_args();
     let period = Duration::from_millis(cli_opts.period);
 
     let mut rng = SmallRng::from_entropy();
     let seed_generation = Generation::random(0, cli_opts.width, cli_opts.height, &mut rng);
 
-    let mut renderer = PrintlnRenderer {};
-    Generation::generation_iter(seed_generation)
+    let mut renderer = TerminalRenderer::new()?;
+    for gen in Generation::generation_iter(seed_generation)
         .skip(cli_opts.start)
         .step_by(cli_opts.step)
         .take(cli_opts.count.unwrap_or(usize::MAX))
-        .inspect(|_| thread::sleep(period))
-        .for_each(|gen| renderer.render(&gen));
+    {
+        thread::sleep(period);
+        renderer.render(&gen)?;
+    }
+    Ok(())
 }

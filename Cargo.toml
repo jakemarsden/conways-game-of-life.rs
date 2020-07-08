@@ -18,5 +18,6 @@ lto = true
 panic = 'abort'
 
 [dependencies]
+crossterm = "0.17"
 rand = { version = "0.7", features = ["small_rng"] }
 structopt = "0.3"
