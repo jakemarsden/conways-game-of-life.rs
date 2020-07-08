@@ -3,7 +3,7 @@ use std::{fmt, mem};
 
 use crossterm::cursor::MoveTo;
 use crossterm::queue;
-use crossterm::style::{Colorize, Print, PrintStyledContent, Styler};
+use crossterm::style::{Colorize, PrintStyledContent, Styler};
 use crossterm::terminal::{self, Clear, ClearType};
 
 use crate::game::*;
@@ -71,8 +71,9 @@ impl TerminalRenderer {
                     out,
                     MoveTo(Self::TITLE_POSITION_X, Self::TITLE_POSITION_Y),
                     Clear(ClearType::UntilNewLine),
-                    Print(Self::TITLE_TEXT_PREFIX),
-                    Print(next_index)
+                    PrintStyledContent(
+                        format!("{}{}", Self::TITLE_TEXT_PREFIX, next_index).underlined()
+                    )
                 )?;
             }
             RedrawStrategy::Partial => {
@@ -84,7 +85,7 @@ impl TerminalRenderer {
                         Self::TITLE_POSITION_Y,
                     ),
                     Clear(ClearType::UntilNewLine),
-                    Print(next_index)
+                    PrintStyledContent(next_index.to_string().underlined())
                 )?;
             }
             RedrawStrategy::Nop => {}
@@ -115,19 +116,16 @@ impl TerminalRenderer {
     }
 
     fn redraw_cell(&mut self, (x, y): (u16, u16), cell: &Cell) -> crossterm::Result<()> {
+        let cell_display = match cell {
+            Cell::Alive => '•'.bold().dark_green().on_black(),
+            Cell::Dead => ' '.on_black(),
+        };
         let mut out = io::stdout();
         queue!(
             out,
-            MoveTo(x + Self::CELL_OFFSET_X, y + Self::CELL_OFFSET_Y)
+            MoveTo(x + Self::CELL_OFFSET_X, y + Self::CELL_OFFSET_Y),
+            PrintStyledContent(cell_display),
         )?;
-        match cell {
-            Cell::Alive => {
-                queue!(out, PrintStyledContent('•'.dark_green().bold()))?;
-            }
-            Cell::Dead => {
-                queue!(out, Print(' '))?;
-            }
-        }
         Ok(())
     }
 }
