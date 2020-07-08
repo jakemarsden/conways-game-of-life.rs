@@ -3,7 +3,7 @@ use std::{fmt, mem};
 
 use crossterm::cursor::MoveTo;
 use crossterm::queue;
-use crossterm::style::Print;
+use crossterm::style::{Colorize, Print, PrintStyledContent, Styler};
 use crossterm::terminal::{self, Clear, ClearType};
 
 use crate::game::*;
@@ -115,16 +115,19 @@ impl TerminalRenderer {
     }
 
     fn redraw_cell(&mut self, (x, y): (u16, u16), cell: &Cell) -> crossterm::Result<()> {
-        let ch = match cell {
-            Cell::Alive => 'x',
-            Cell::Dead => ' ',
-        };
         let mut out = io::stdout();
         queue!(
             out,
-            MoveTo(x + Self::CELL_OFFSET_X, y + Self::CELL_OFFSET_Y),
-            Print(ch)
+            MoveTo(x + Self::CELL_OFFSET_X, y + Self::CELL_OFFSET_Y)
         )?;
+        match cell {
+            Cell::Alive => {
+                queue!(out, PrintStyledContent('•'.dark_green().bold()))?;
+            }
+            Cell::Dead => {
+                queue!(out, Print(' '))?;
+            }
+        }
         Ok(())
     }
 
