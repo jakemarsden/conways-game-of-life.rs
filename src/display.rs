@@ -1,5 +1,5 @@
 use std::io::{self, Write};
-use std::{fmt, mem};
+use std::mem;
 
 use crossterm::cursor::MoveTo;
 use crossterm::queue;
@@ -8,23 +8,25 @@ use crossterm::terminal::{self, Clear, ClearType};
 
 use crate::game::*;
 
-pub trait Render<E: fmt::Debug> {
-    fn available_space(&self) -> Option<(usize, usize)>;
-    fn render(&mut self, gen: &Generation) -> Result<(), E>;
+type Result<T> = std::result::Result<T, crossterm::ErrorKind>;
+
+pub trait Display<E> {
+    fn available_cells(&self) -> Option<(usize, usize)>;
+    fn draw(&mut self, gen: &Generation) -> std::result::Result<(), E>;
 }
 
-pub struct TerminalRenderer {
+pub struct TerminalDisplay {
     prev_gen: Option<Generation>,
 }
 
-impl TerminalRenderer {
-    pub fn new() -> crossterm::Result<Self> {
+impl TerminalDisplay {
+    pub fn new() -> Result<Self> {
         terminal::enable_raw_mode()?;
         Ok(Self { prev_gen: None })
     }
 }
 
-impl Drop for TerminalRenderer {
+impl Drop for TerminalDisplay {
     fn drop(&mut self) {
         // FIXME: destructor not called on SIGINT
         // ignore result, don't really care if cleanup fails
@@ -32,7 +34,7 @@ impl Drop for TerminalRenderer {
     }
 }
 
-impl TerminalRenderer {
+impl TerminalDisplay {
     const CELL_OFFSET_X: u16 = Self::BORDER_THICKNESS;
     const CELL_OFFSET_Y: u16 = Self::BORDER_THICKNESS + Self::TITLE_POSITION_Y + 1;
     const BORDER_THICKNESS: u16 = 1;
@@ -130,8 +132,8 @@ impl TerminalRenderer {
     }
 }
 
-impl Render<crossterm::ErrorKind> for TerminalRenderer {
-    fn available_space(&self) -> Option<(usize, usize)> {
+impl Display<crossterm::ErrorKind> for TerminalDisplay {
+    fn available_cells(&self) -> Option<(usize, usize)> {
         let (term_width, term_height) = terminal::size().ok()?;
         let (avail_width, avail_height) = (
             term_width - Self::CELL_OFFSET_X - Self::BORDER_THICKNESS,
@@ -140,7 +142,7 @@ impl Render<crossterm::ErrorKind> for TerminalRenderer {
         Some((avail_width as usize, avail_height as usize))
     }
 
-    fn render(&mut self, next_gen: &Generation) -> crossterm::Result<()> {
+    fn draw(&mut self, next_gen: &Generation) -> crossterm::Result<()> {
         let mut curr_gen = Some(next_gen.clone());
         mem::swap(&mut curr_gen, &mut self.prev_gen);
 

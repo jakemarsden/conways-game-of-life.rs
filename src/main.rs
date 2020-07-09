@@ -5,11 +5,11 @@ use rand::rngs::SmallRng;
 use rand::SeedableRng;
 use structopt::StructOpt;
 
+use crate::display::*;
 use crate::game::*;
-use crate::render::*;
 
+mod display;
 mod game;
-mod render;
 
 const FALLBACK_WIDTH: usize = 40;
 const FALLBACK_HEIGHT: usize = 20;
@@ -63,8 +63,8 @@ fn main() -> crossterm::Result<()> {
     let cli_opts: CliOptions = CliOptions::from_args();
     let period = Duration::from_millis(cli_opts.period);
 
-    let mut renderer = TerminalRenderer::new()?;
-    let available_space = renderer.available_space();
+    let mut display = TerminalDisplay::new()?;
+    let available_space = display.available_cells();
     let width = cli_opts
         .width
         .or_else(|| available_space.map(|(x, _)| x))
@@ -83,7 +83,7 @@ fn main() -> crossterm::Result<()> {
         .take(cli_opts.count.unwrap_or(usize::MAX))
     {
         thread::sleep(period);
-        renderer.render(&gen)?;
+        display.draw(&gen)?;
     }
     Ok(())
 }
