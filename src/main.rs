@@ -1,12 +1,8 @@
-use std::thread;
 use std::time::Duration;
 
 use rand::rngs::SmallRng;
 use rand::SeedableRng;
 use structopt::StructOpt;
-
-use crate::display::*;
-use crate::game::*;
 
 mod display;
 mod game;
@@ -59,31 +55,158 @@ struct CliOptions {
     height: Option<usize>,
 }
 
-fn main() -> crossterm::Result<()> {
+fn main() -> app::Result<()> {
     let cli_opts: CliOptions = CliOptions::from_args();
-    let period = Duration::from_millis(cli_opts.period);
 
-    let mut display = TerminalDisplay::new()?;
-    let available_space = display.available_cells();
-    let width = cli_opts
-        .width
-        .or_else(|| available_space.map(|(x, _)| x))
-        .unwrap_or(FALLBACK_WIDTH);
-    let height = cli_opts
-        .height
-        .or_else(|| available_space.map(|(_, y)| y))
-        .unwrap_or(FALLBACK_HEIGHT);
+    let preferred_size = match (cli_opts.width, cli_opts.height) {
+        (Some(w), Some(h)) => Some((w, h)),
+        (None, None) => None,
+        // TODO: better error handling than just `panic!()`ing !!
+        (_, _) => panic!("Must provide exactly 0 or 2 of: [width, height]"),
+    };
 
     let mut rng = SmallRng::from_entropy();
-    let seed_generation = Generation::random(0, width, height, &mut rng);
 
-    for gen in Generation::generation_iter(seed_generation)
-        .skip(cli_opts.start)
-        .step_by(cli_opts.step)
-        .take(cli_opts.count.unwrap_or(usize::MAX))
-    {
-        thread::sleep(period);
-        display.draw(&gen)?;
-    }
+    let app = app::App::new(
+        cli_opts.start,
+        cli_opts.step,
+        cli_opts.count.unwrap_or(usize::MAX),
+        preferred_size,
+        Duration::from_millis(cli_opts.period),
+        &mut rng,
+    )?;
+
+    app.run_to_completion()?;
+
     Ok(())
+}
+
+mod app {
+    use std::time::Duration;
+    use std::{fmt, thread};
+
+    use rand::Rng;
+
+    use crate::display::*;
+    use crate::game::*;
+
+    #[derive(Debug)]
+    pub enum Error {
+        Display(crossterm::ErrorKind),
+    }
+
+    pub type Result<T> = std::result::Result<T, Error>;
+
+    #[derive(Copy, Clone, Eq, PartialEq, Debug)]
+    enum State {
+        Initial,
+        Running,
+        Finished,
+    }
+
+    pub struct App {
+        step: usize,
+        count: usize,
+        period: Duration,
+        state: State,
+        generation: Generation,
+        display: TerminalDisplay,
+    }
+
+    impl App {
+        pub fn new<R>(
+            start: usize,
+            step: usize,
+            count: usize,
+            preferred_size: Option<(usize, usize)>,
+            period: Duration,
+            rng: &mut R,
+        ) -> Result<Self>
+        where
+            R: Rng + ?Sized,
+        {
+            let display = TerminalDisplay::new().map_err(Error::from)?;
+            let (width, height) = preferred_size
+                .or_else(|| {
+                    display
+                        .available_cells()
+                        .map(|(width, height)| (width as usize, height as usize))
+                })
+                .unwrap_or_else(|| (super::FALLBACK_WIDTH, super::FALLBACK_HEIGHT));
+
+            let seed_gen = Generation::random(0, width, height, rng);
+            let generation = Generation::nth_after(&seed_gen, start);
+            Ok(Self {
+                step,
+                count: count - 1,
+                period,
+                state: State::Initial,
+                generation,
+                display,
+            })
+        }
+
+        pub fn run_to_completion(mut self) -> Result<()> {
+            loop {
+                match self.state {
+                    State::Initial => {
+                        self.render()?;
+                        self.state = State::Running;
+                    }
+                    State::Running => {
+                        self.handle_input()?;
+                        self.update()?;
+                        self.render()?;
+                    }
+                    State::Finished => {
+                        break;
+                    }
+                }
+                if self.state == State::Running {
+                    thread::sleep(self.period);
+                }
+            }
+            Ok(())
+        }
+
+        fn handle_input(&mut self) -> Result<()> {
+            Ok(())
+        }
+
+        fn update(&mut self) -> Result<()> {
+            if self.count != 0 {
+                self.count -= 1;
+                self.generation = Generation::nth_after(&self.generation, self.step);
+            } else {
+                self.state = State::Finished;
+            }
+            Ok(())
+        }
+
+        fn render(&mut self) -> Result<()> {
+            self.display.draw(&self.generation).map_err(Error::from)
+        }
+    }
+
+    impl std::error::Error for Error {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            match self {
+                Self::Display(err) => Some(err),
+            }
+        }
+    }
+
+    impl fmt::Display for Error {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::Display(err) => fmt::Display::fmt(err, f),
+            }
+        }
+    }
+
+    impl From<crossterm::ErrorKind> for Error {
+        fn from(source: crossterm::ErrorKind) -> Self {
+            Self::Display(source)
+        }
+    }
 }

@@ -1,4 +1,4 @@
-use std::{iter, ops};
+use std::ops;
 
 use rand::Rng;
 
@@ -77,10 +77,6 @@ impl ops::Not for Cell {
 }
 
 impl Generation {
-    pub fn generation_iter(seed: Generation) -> impl Iterator<Item = Self> {
-        iter::successors(Some(seed), |prev| Some(prev.next()))
-    }
-
     pub fn filled(index: usize, width: usize, height: usize, filler: Cell) -> Self {
         let cells = vec![filler; width * height];
         Self {
@@ -108,6 +104,15 @@ impl Generation {
         }
     }
 
+    pub fn nth_after(seed: &Self, n: usize) -> Self {
+        // TODO: avoid this copy?
+        let mut it = seed.clone();
+        for _ in 0..n {
+            it = it.next();
+        }
+        it
+    }
+
     pub fn width(&self) -> usize {
         self.width
     }
@@ -120,7 +125,7 @@ impl Generation {
         self.index
     }
 
-    pub fn next(&self) -> Self {
+    fn next(&self) -> Self {
         let mut next = Self::filled(self.index() + 1, self.width(), self.height(), Cell::Dead);
         for y in 0..self.height() {
             for x in 0..self.width() {
