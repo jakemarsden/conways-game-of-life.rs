@@ -1,10 +1,10 @@
 use std::io::{self, Write};
 use std::mem;
 
-use crossterm::cursor::MoveTo;
-use crossterm::queue;
+use crossterm::cursor::{self, MoveTo};
 use crossterm::style::{Colorize, PrintStyledContent, Styler};
 use crossterm::terminal::{self, Clear, ClearType};
+use crossterm::{execute, queue};
 
 use crate::game::*;
 
@@ -21,7 +21,9 @@ pub struct TerminalDisplay {
 
 impl TerminalDisplay {
     pub fn new() -> Result<Self> {
+        let mut out = io::stdout();
         terminal::enable_raw_mode()?;
+        execute!(out, cursor::Hide)?;
         Ok(Self { prev_gen: None })
     }
 }
@@ -29,7 +31,9 @@ impl TerminalDisplay {
 impl Drop for TerminalDisplay {
     fn drop(&mut self) {
         // FIXME: destructor not called on SIGINT
-        // ignore result, don't really care if cleanup fails
+        let mut out = io::stdout();
+        // ignore results, don't really care if cleanup fails
+        let _ignored = execute!(out, cursor::Show);
         let _ignored = terminal::disable_raw_mode();
     }
 }
