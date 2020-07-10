@@ -65,15 +65,14 @@ fn main() -> app::Result<()> {
         (_, _) => panic!("Must provide exactly 0 or 2 of: [width, height]"),
     };
 
-    let mut rng = SmallRng::from_entropy();
-
+    let rng = SmallRng::from_entropy();
     let app = app::App::new(
         cli_opts.start,
         cli_opts.step,
         cli_opts.count.unwrap_or(usize::MAX),
         preferred_size,
         Duration::from_millis(cli_opts.period),
-        &mut rng,
+        rng,
     )?;
 
     app.run_to_completion()?;
@@ -99,6 +98,7 @@ mod app {
 
     #[derive(Copy, Clone, Eq, PartialEq, Debug)]
     pub enum Action {
+        Restart,
         Exit,
         Unmapped,
     }
@@ -110,27 +110,28 @@ mod app {
         Finished,
     }
 
-    pub struct App {
+    pub struct App<R: Rng> {
+        start: usize,
         step: usize,
         count: usize,
+        curr_count: usize,
+        size: (usize, usize),
         period: Duration,
+        rng: R,
         state: State,
         generation: Generation,
         display: TerminalDisplay,
     }
 
-    impl App {
-        pub fn new<R>(
+    impl<R: Rng> App<R> {
+        pub fn new(
             start: usize,
             step: usize,
             count: usize,
             preferred_size: Option<(usize, usize)>,
             period: Duration,
-            rng: &mut R,
-        ) -> Result<Self>
-        where
-            R: Rng + ?Sized,
-        {
+            mut rng: R,
+        ) -> Result<Self> {
             let display = TerminalDisplay::new().map_err(Error::from)?;
             let (width, height) = preferred_size
                 .or_else(|| {
@@ -140,12 +141,16 @@ mod app {
                 })
                 .unwrap_or_else(|| (super::FALLBACK_WIDTH, super::FALLBACK_HEIGHT));
 
-            let seed_gen = Generation::random(0, width, height, rng);
+            let seed_gen = Generation::random(0, width, height, &mut rng);
             let generation = Generation::nth_after(&seed_gen, start);
             Ok(Self {
+                start,
                 step,
                 count: count - 1,
+                curr_count: count - 1,
+                size: (width, height),
                 period,
+                rng,
                 state: State::Initial,
                 generation,
                 display,
@@ -179,7 +184,16 @@ mod app {
             while let Some(ev) = self.display.take_pending_event()? {
                 let action = Action::from(ev);
                 match action {
-                    Action::Exit => self.state = State::Finished,
+                    Action::Restart => {
+                        let (width, height) = self.size;
+                        let seed_gen = Generation::random(0, width, height, &mut self.rng);
+                        self.generation = Generation::nth_after(&seed_gen, self.start);
+                        self.curr_count = self.count;
+                        self.state = State::Initial;
+                    }
+                    Action::Exit => {
+                        self.state = State::Finished;
+                    }
                     Action::Unmapped => {}
                 }
             }
@@ -187,8 +201,8 @@ mod app {
         }
 
         fn update(&mut self) -> Result<()> {
-            if self.count != 0 {
-                self.count -= 1;
+            if self.curr_count != 0 {
+                self.curr_count -= 1;
                 self.generation = Generation::nth_after(&self.generation, self.step);
             } else {
                 self.state = State::Finished;
@@ -213,6 +227,7 @@ mod app {
     impl From<KeyEvent> for Action {
         fn from(key_ev: KeyEvent) -> Self {
             match key_ev.code {
+                KeyCode::Char('r') => Self::Restart,
                 KeyCode::Char('q') | KeyCode::Esc => Self::Exit,
                 KeyCode::Char('c') if key_ev.modifiers.contains(KeyModifiers::CONTROL) => {
                     Self::Exit
