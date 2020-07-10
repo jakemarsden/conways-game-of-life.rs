@@ -20,8 +20,10 @@ OPTIONS:
     -c, --count <count>      Number of generations to display [default: ∞]
     -h, --height <height>    Number of vertical cells to simulate [default: terminal-height]
     -p, --period <period>    Duration to pause after displaying each generation (in milliseconds) [default: 20]
+        --seed <seed>        Seed for the PRNG which produces the first generation [default: random]
     -s, --start <start>      Index of the first generation to display (zero-based) [default: 0]
     -N, --step <step>        Display only every Nth generation [default: 1]
+        --weight <weight>    Probability that a cell will be alive in the first generation [default: 0.5]
     -w, --width <width>      Number of horizontal cells to simulate [default: terminal-width]
 ```
 

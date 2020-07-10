@@ -1,7 +1,5 @@
 use std::ops;
 
-use rand::Rng;
-
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct Position(pub isize, pub isize);
 
@@ -87,14 +85,13 @@ impl Generation {
         }
     }
 
-    pub fn random<R>(index: usize, width: usize, height: usize, rng: &mut R) -> Self
+    pub fn generate<F>(index: usize, width: usize, height: usize, cell_generator: &mut F) -> Self
     where
-        R: Rng + ?Sized,
+        F: FnMut() -> Cell,
     {
         let mut cells = Vec::with_capacity(width * height);
         for _ in 0..width * height {
-            let cell_state = if rng.gen() { Cell::Alive } else { Cell::Dead };
-            cells.push(cell_state);
+            cells.push(cell_generator());
         }
         Self {
             width,

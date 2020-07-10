@@ -1,8 +1,11 @@
 use std::time::Duration;
 
+use rand::distributions::{Bernoulli, BernoulliError};
 use rand::rngs::SmallRng;
-use rand::SeedableRng;
+use rand::{Rng, SeedableRng};
 use structopt::StructOpt;
+
+use crate::game::Cell;
 
 mod display;
 mod game;
@@ -13,6 +16,19 @@ const FALLBACK_HEIGHT: usize = 20;
 #[derive(StructOpt, Debug)]
 #[structopt()]
 struct CliOptions {
+    #[structopt(
+        long,
+        help = "Seed for the PRNG which produces the first generation [default: random]"
+    )]
+    seed: Option<u64>,
+
+    #[structopt(
+        long,
+        default_value = "0.5",
+        help = "Probability that a cell will be alive in the first generation"
+    )]
+    weight: f32,
+
     #[structopt(
         short,
         long,
@@ -61,18 +77,21 @@ fn main() -> app::Result<()> {
     let preferred_size = match (cli_opts.width, cli_opts.height) {
         (Some(w), Some(h)) => Some((w, h)),
         (None, None) => None,
-        // TODO: better error handling than just `panic!()`ing !!
-        (_, _) => panic!("Must provide exactly 0 or 2 of: [width, height]"),
+        // TODO: better error handling than for bad user input
+        (_, _) => panic!("Bad user args: Must provide exactly 0 or 2 of: [width, height]"),
     };
 
-    let rng = SmallRng::from_entropy();
+    // TODO: better error handing for user-supplied weight outside [0.0, 1.0]
+    let cell_gen = weighted_cell_generator(cli_opts.weight, cli_opts.seed)
+        .expect("Bad user args: Weight must be in the range [0.0, 1.0]");
+
     let app = app::App::new(
         cli_opts.start,
         cli_opts.step,
         cli_opts.count.unwrap_or(usize::MAX),
         preferred_size,
         Duration::from_millis(cli_opts.period),
-        rng,
+        cell_gen,
     )?;
 
     app.run_to_completion()?;
@@ -80,11 +99,27 @@ fn main() -> app::Result<()> {
     Ok(())
 }
 
+fn weighted_cell_generator(
+    weight: f32,
+    seed: Option<u64>,
+) -> Result<impl FnMut() -> Cell, BernoulliError> {
+    let distr = Bernoulli::new(weight.into())?;
+    let rng = seed
+        .map(SmallRng::seed_from_u64)
+        .unwrap_or_else(SmallRng::from_entropy);
+    let mut cell_iter =
+        rng.sample_iter::<bool, _>(distr)
+            .map(|alive| if alive { Cell::Alive } else { Cell::Dead });
+    Ok(move || {
+        cell_iter
+            .next()
+            .expect("Expected Rng::sample_iter(Distribution) to be infinite")
+    })
+}
+
 mod app {
     use std::time::Duration;
     use std::{fmt, thread};
-
-    use rand::Rng;
 
     use crate::display::*;
     use crate::game::*;
@@ -110,27 +145,33 @@ mod app {
         Finished,
     }
 
-    pub struct App<R: Rng> {
+    pub struct App<F>
+    where
+        F: FnMut() -> Cell,
+    {
         start: usize,
         step: usize,
         count: usize,
         curr_count: usize,
         size: (usize, usize),
         period: Duration,
-        rng: R,
+        cell_gen: F,
         state: State,
         generation: Generation,
         display: TerminalDisplay,
     }
 
-    impl<R: Rng> App<R> {
+    impl<F> App<F>
+    where
+        F: FnMut() -> Cell,
+    {
         pub fn new(
             start: usize,
             step: usize,
             count: usize,
             preferred_size: Option<(usize, usize)>,
             period: Duration,
-            mut rng: R,
+            mut cell_gen: F,
         ) -> Result<Self> {
             let display = TerminalDisplay::new().map_err(Error::from)?;
             let (width, height) = preferred_size
@@ -141,7 +182,7 @@ mod app {
                 })
                 .unwrap_or_else(|| (super::FALLBACK_WIDTH, super::FALLBACK_HEIGHT));
 
-            let seed_gen = Generation::random(0, width, height, &mut rng);
+            let seed_gen = Generation::generate(0, width, height, &mut cell_gen);
             let generation = Generation::nth_after(&seed_gen, start);
             Ok(Self {
                 start,
@@ -150,7 +191,7 @@ mod app {
                 curr_count: count - 1,
                 size: (width, height),
                 period,
-                rng,
+                cell_gen,
                 state: State::Initial,
                 generation,
                 display,
@@ -186,7 +227,7 @@ mod app {
                 match action {
                     Action::Restart => {
                         let (width, height) = self.size;
-                        let seed_gen = Generation::random(0, width, height, &mut self.rng);
+                        let seed_gen = Generation::generate(0, width, height, &mut self.cell_gen);
                         self.generation = Generation::nth_after(&seed_gen, self.start);
                         self.curr_count = self.count;
                         self.state = State::Initial;
