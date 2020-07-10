@@ -1,18 +1,21 @@
 use std::io::{self, Write};
 use std::mem;
+use std::time::Duration;
 
 use crossterm::cursor::{self, MoveTo};
+pub use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent};
 use crossterm::style::{Colorize, PrintStyledContent, Styler};
 use crossterm::terminal::{self, Clear, ClearType};
-use crossterm::{execute, queue};
+use crossterm::{event, execute, queue};
 
 use crate::game::*;
 
 type Result<T> = std::result::Result<T, crossterm::ErrorKind>;
 
-pub trait Display<E> {
+pub trait Display<Ev, Er> {
     fn available_cells(&self) -> Option<(usize, usize)>;
-    fn draw(&mut self, gen: &Generation) -> std::result::Result<(), E>;
+    fn take_pending_event(&self) -> std::result::Result<Option<Ev>, Er>;
+    fn draw(&mut self, gen: &Generation) -> std::result::Result<(), Er>;
 }
 
 pub struct TerminalDisplay {
@@ -30,7 +33,6 @@ impl TerminalDisplay {
 
 impl Drop for TerminalDisplay {
     fn drop(&mut self) {
-        // FIXME: destructor not called on SIGINT
         let mut out = io::stdout();
         // ignore results, don't really care if cleanup fails
         let _ignored = execute!(out, cursor::Show);
@@ -136,7 +138,7 @@ impl TerminalDisplay {
     }
 }
 
-impl Display<crossterm::ErrorKind> for TerminalDisplay {
+impl Display<Event, crossterm::ErrorKind> for TerminalDisplay {
     fn available_cells(&self) -> Option<(usize, usize)> {
         let (term_width, term_height) = terminal::size().ok()?;
         let (avail_width, avail_height) = (
@@ -144,6 +146,15 @@ impl Display<crossterm::ErrorKind> for TerminalDisplay {
             term_height - Self::CELL_OFFSET_Y - Self::BORDER_THICKNESS,
         );
         Some((avail_width as usize, avail_height as usize))
+    }
+
+    fn take_pending_event(&self) -> Result<Option<Event>> {
+        static INSTANT_TIMEOUT: Duration = Duration::from_secs(0);
+        if event::poll(INSTANT_TIMEOUT)? {
+            event::read().map(Some)
+        } else {
+            Ok(None)
+        }
     }
 
     fn draw(&mut self, next_gen: &Generation) -> crossterm::Result<()> {

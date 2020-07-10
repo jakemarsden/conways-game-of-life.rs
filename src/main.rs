@@ -98,6 +98,12 @@ mod app {
     pub type Result<T> = std::result::Result<T, Error>;
 
     #[derive(Copy, Clone, Eq, PartialEq, Debug)]
+    pub enum Action {
+        Exit,
+        Unmapped,
+    }
+
+    #[derive(Copy, Clone, Eq, PartialEq, Debug)]
     enum State {
         Initial,
         Running,
@@ -170,6 +176,13 @@ mod app {
         }
 
         fn handle_input(&mut self) -> Result<()> {
+            while let Some(ev) = self.display.take_pending_event()? {
+                let action = Action::from(ev);
+                match action {
+                    Action::Exit => self.state = State::Finished,
+                    Action::Unmapped => {}
+                }
+            }
             Ok(())
         }
 
@@ -185,6 +198,27 @@ mod app {
 
         fn render(&mut self) -> Result<()> {
             self.display.draw(&self.generation).map_err(Error::from)
+        }
+    }
+
+    impl From<Event> for Action {
+        fn from(ev: Event) -> Self {
+            match ev {
+                Event::Key(key_ev) => Self::from(key_ev),
+                _ => Self::Unmapped,
+            }
+        }
+    }
+
+    impl From<KeyEvent> for Action {
+        fn from(key_ev: KeyEvent) -> Self {
+            match key_ev.code {
+                KeyCode::Char('q') | KeyCode::Esc => Self::Exit,
+                KeyCode::Char('c') if key_ev.modifiers.contains(KeyModifiers::CONTROL) => {
+                    Self::Exit
+                }
+                _ => Self::Unmapped,
+            }
         }
     }
 
