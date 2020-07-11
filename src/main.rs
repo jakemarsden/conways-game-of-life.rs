@@ -224,21 +224,25 @@ mod app {
         }
 
         fn handle_input(&mut self) -> Result<()> {
+            let mut latest_action = Action::Unmapped;
             while let Some(ev) = self.display.take_pending_event()? {
                 let action = Action::from(ev);
-                match action {
-                    Action::Restart => {
-                        let (width, height) = self.size;
-                        let seed_gen = Generation::generate(0, width, height, &mut self.cell_gen);
-                        self.generation = Generation::nth_after(&seed_gen, self.start);
-                        self.curr_count = self.count;
-                        self.state = State::Initial;
-                    }
-                    Action::Exit => {
-                        self.state = State::Finished;
-                    }
-                    Action::Unmapped => {}
+                if action != Action::Unmapped {
+                    latest_action = action;
                 }
+            }
+            match latest_action {
+                Action::Restart => {
+                    let (width, height) = self.size;
+                    let seed_gen = Generation::generate(0, width, height, &mut self.cell_gen);
+                    self.generation = Generation::nth_after(&seed_gen, self.start);
+                    self.curr_count = self.count;
+                    self.state = State::Initial;
+                }
+                Action::Exit => {
+                    self.state = State::Finished;
+                }
+                Action::Unmapped => {}
             }
             Ok(())
         }
