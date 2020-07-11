@@ -138,10 +138,11 @@ mod app {
         Unmapped,
     }
 
-    #[derive(Copy, Clone, Eq, PartialEq, Debug)]
+    #[derive(Clone, Eq, PartialEq, Debug)]
     enum State {
         Initial,
         Running,
+        Waiting(Duration, Box<State>),
         Finished,
     }
 
@@ -200,22 +201,23 @@ mod app {
 
         pub fn run_to_completion(mut self) -> Result<()> {
             loop {
-                match self.state {
+                self.handle_input()?;
+                match self.state.clone() {
                     State::Initial => {
                         self.render()?;
-                        self.state = State::Running;
+                        self.state = State::Waiting(self.period, Box::new(State::Running));
                     }
                     State::Running => {
-                        self.handle_input()?;
                         self.update()?;
                         self.render()?;
+                        self.state = State::Waiting(self.period, Box::new(self.state.clone()));
+                    }
+                    State::Waiting(duration, next_state) => {
+                        self.wait(duration, next_state);
                     }
                     State::Finished => {
                         break;
                     }
-                }
-                if self.state == State::Running {
-                    thread::sleep(self.period);
                 }
             }
             Ok(())
@@ -253,6 +255,21 @@ mod app {
 
         fn render(&mut self) -> Result<()> {
             self.display.draw(&self.generation).map_err(Error::from)
+        }
+
+        fn wait(&mut self, duration: Duration, next_state: Box<State>) {
+            /// Max time to sleep without checking for and handling any buffered user input
+            static MAX_WAIT_TIME: Duration = Duration::from_millis(250);
+
+            // could sleep for longer than `duration` but the inaccuracy shouldn't be enough to care
+            // about right now
+            if duration > MAX_WAIT_TIME {
+                thread::sleep(MAX_WAIT_TIME);
+                self.state = State::Waiting(duration - MAX_WAIT_TIME, next_state);
+            } else {
+                thread::sleep(duration);
+                self.state = *next_state;
+            }
         }
     }
 
