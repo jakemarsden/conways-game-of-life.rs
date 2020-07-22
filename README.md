@@ -4,6 +4,12 @@ Command-line simulator for Conway's Game of Life
 
 [![CI][ci-badge]][ci]
 
+## Demo
+
+![Demo animation](demos/demo.gif)
+
+Recorded using [ScreenToGif][screen-to-gif].
+
 ## Help
 
 ```text
@@ -36,3 +42,4 @@ You can use the following keys while the program is running:
 
 [ci]: https://github.com/jakemarsden/conways-game-of-life.rs/actions?query=workflow%3ACI
 [ci-badge]: https://github.com/jakemarsden/conways-game-of-life.rs/workflows/CI/badge.svg
+[screen-to-gif]: https://www.screentogif.com/
