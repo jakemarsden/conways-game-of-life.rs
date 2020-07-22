@@ -51,7 +51,7 @@ struct CliOptions {
     #[structopt(
         short,
         long,
-        default_value = "20",
+        default_value = "33",
         help = "Duration to pause after displaying each generation (in milliseconds)"
     )]
     period: u64,
